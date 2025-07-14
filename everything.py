@@ -260,6 +260,20 @@ def choose_optional_field(prompt):
                 except ValueError:
                     print("Please enter a valid number.")
 
+def find_first_valid_dir(root, exts):
+    for dirpath, dirnames, filenames in os.walk(root):
+        if any(file.lower().endswith(exts) for file in filenames):
+            return dirpath
+    return None
+
+def find_first_color_image_dir(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        for file in filenames:
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')) and file.startswith("color_"):
+                return dirpath
+    return None
+
+
 
 
 if __name__ == "__main__":          #只有当我python XXX.py的时候这段才会作为main运行 不然就不运行了
@@ -280,6 +294,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     parser.add_argument("--export-bad-case", action="store_true", help="Export bad cases (FN/FP)")
     parser.add_argument("--fplabel", type=str, default="Ball", help="FP label selection") 
     parser.add_argument("--importdataset", type=str, default=None, help="Path to dataset folder") 
+    parser.add_argument("--rename", type=str, default=None, help="Rename an imported dataset") 
     parser.add_argument("--project", type=str, default= "detection2507", help="The cvat project to be sent to.") 
     parser.add_argument("--confidence", type=float, default=0.2, help="Confidence threshold for predictions")
     args = parser.parse_args()
@@ -305,6 +320,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     IOU_THRESH_4_FILTERED_UPLOADING = args.filterIOU
     FP_LABEL_4_EXPORTING = args.fplabel
     CVAT_DEST_PROJECT = args.project
+    RENAME_IMPORTED_DATASET = args.rename
 
     print(f"Confidence threshold for filtered upload: {CONF_THRESH_4_FILTERED_UPLOADING}")
     print(f"IOU threshold for filtered upload: {IOU_THRESH_4_FILTERED_UPLOADING}")
@@ -339,7 +355,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     #             dataset.merge_samples(tmp_dataset)
 
     if args.importdataset:
-        datasetname = f"imported_{datasetname}"
+        datasetname = f"imported_{Path(args.importdataset).stem}"
         if fo.dataset_exists(datasetname):
             dataset = fo.load_dataset(datasetname)
             print(f"Loaded imported dataset: {datasetname}")
@@ -347,25 +363,21 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             yaml_path = os.path.join(args.importdataset, "dataset.yaml")
             if not os.path.exists(yaml_path):
                 print("dataset.yaml not found, auto-generating...")
-
                 images_root = os.path.join(args.importdataset, "images")
                 labels_root = os.path.join(args.importdataset, "labels")
-
-                train_dir = os.path.join(images_root, "train")
-                val_dir = os.path.join(images_root, "val")
-
-                if os.path.exists(train_dir) and os.path.exists(val_dir):
-                    generate_dataset_yaml(train_dir, val_dir, class_names, yaml_path)
-                elif os.path.exists(val_dir):
-                    print("Detected images/val + labels/val structure, using val-only import.")
+                image_dir = find_first_color_image_dir(images_root)
+                label_dir = find_first_valid_dir(labels_root, ('.txt'))
+                if image_dir is not None and label_dir is not None:
+                    print(f"Found images in {image_dir}")
+                    print(f"Found labels in {label_dir}")
                     generate_dataset_yaml(
-                        train_dir=val_dir,   
-                        val_dir=val_dir,
+                        train_dir=image_dir,
+                        val_dir=image_dir,
                         class_names=class_names,
                         output_path=yaml_path
                     )
                 else:
-                    raise ValueError("No valid image folders found. Need images/train + images/val or at least images/val.")
+                    raise ValueError("No valid images or labels found under images/ and labels/")
             importer = YOLOv5DatasetImporter(
                 dataset_dir=args.importdataset,
                 yaml_path="dataset.yaml",
@@ -373,10 +385,17 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
                 label_type="detections",
                 include_all_data = True
             )
-            dataset = fo.Dataset.from_importer(importer, name=datasetname)
-            dataset.persistent = True
-            print(f"Imported YOLOv5 dataset: {datasetname}")
-            print(f"Imported {len(dataset)} samples into FiftyOne")
+            if RENAME_IMPORTED_DATASET is None:
+                dataset = fo.Dataset.from_importer(importer, name=datasetname)
+                dataset.persistent = True
+                print(f"Imported YOLOv5 dataset: {datasetname}")
+                print(f"Imported {len(dataset)} samples into FiftyOne")
+            else:
+                datasetname = f"imported_{RENAME_IMPORTED_DATASET}"
+                dataset = fo.Dataset.from_importer(importer, name=datasetname)
+                dataset.persistent = True
+                print(f"Imported YOLOv5 dataset: {datasetname}")
+                print(f"Imported {len(dataset)} samples into FiftyOne")
     else:
         if fo.dataset_exists(datasetname):
             dataset = fo.load_dataset(datasetname)
