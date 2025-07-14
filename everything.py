@@ -280,6 +280,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     parser.add_argument("--export-bad-case", action="store_true", help="Export bad cases (FN/FP)")
     parser.add_argument("--fplabel", type=str, default="Ball", help="FP label selection") 
     parser.add_argument("--importdataset", type=str, default=None, help="Path to dataset folder") 
+    parser.add_argument("--project", type=str, default= "detection2507", help="The cvat project to be sent to.") 
     parser.add_argument("--confidence", type=float, default=0.2, help="Confidence threshold for predictions")
     args = parser.parse_args()
 
@@ -293,6 +294,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     print(f"Confidence threshold: {args.confidence}")
     print(f"Import dataset directory: {args.importdataset}")
     print(f"Downloading destination field: {args.dest}")
+    print(f"Destination CVAT project: {args.project}")
 
 
     datasetname = args.datasetname
@@ -302,6 +304,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     CONF_THRESH_4_FILTERED_UPLOADING = args.filterconf
     IOU_THRESH_4_FILTERED_UPLOADING = args.filterIOU
     FP_LABEL_4_EXPORTING = args.fplabel
+    CVAT_DEST_PROJECT = args.project
 
     print(f"Confidence threshold for filtered upload: {CONF_THRESH_4_FILTERED_UPLOADING}")
     print(f"IOU threshold for filtered upload: {IOU_THRESH_4_FILTERED_UPLOADING}")
@@ -341,6 +344,28 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             dataset = fo.load_dataset(datasetname)
             print(f"Loaded imported dataset: {datasetname}")
         else:
+            yaml_path = os.path.join(args.importdataset, "dataset.yaml")
+            if not os.path.exists(yaml_path):
+                print("dataset.yaml not found, auto-generating...")
+
+                images_root = os.path.join(args.importdataset, "images")
+                labels_root = os.path.join(args.importdataset, "labels")
+
+                train_dir = os.path.join(images_root, "train")
+                val_dir = os.path.join(images_root, "val")
+
+                if os.path.exists(train_dir) and os.path.exists(val_dir):
+                    generate_dataset_yaml(train_dir, val_dir, class_names, yaml_path)
+                elif os.path.exists(val_dir):
+                    print("Detected images/val + labels/val structure, using val-only import.")
+                    generate_dataset_yaml(
+                        train_dir=val_dir,   
+                        val_dir=val_dir,
+                        class_names=class_names,
+                        output_path=yaml_path
+                    )
+                else:
+                    raise ValueError("No valid image folders found. Need images/train + images/val or at least images/val.")
             importer = YOLOv5DatasetImporter(
                 dataset_dir=args.importdataset,
                 yaml_path="dataset.yaml",
@@ -464,10 +489,10 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             "task_size":1000,
             "segment_size" : 500,
             "task_name": f'{dataset_cl.name}_task',
-            "project_name": "detection2507",  
+            "project_name": CVAT_DEST_PROJECT,  
             "headers": headers,
         }
-        annotation_key = f'{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
 
@@ -495,8 +520,6 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
         TARGET_FIELD_4_PRELABEL_UPLOADING = choose_required_field(
             "Select the number for the field to upload (TARGET): "
         )
-        headers = {"X-Organization": "BVG"}
-
         options = {
             "label_field": TARGET_FIELD_4_PRELABEL_UPLOADING,
             "classes": class_names,
@@ -506,17 +529,15 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             "task_size":1000,
             "segment_size" : 500,
             "task_name": f'{dataset_cl.name}_task',
-            "project_name": "detection2507",  # optional: assign to existing or new CVAT project
+            "project_name": CVAT_DEST_PROJECT,  # optional: assign to existing or new CVAT project
             "headers": headers,
-            # "url": cvat_url,
-            # "username": cvat_username,
-            # "password": cvat_password,
         }
-        annotation_key = f'{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
 
     if args.filteredupload:
+        headers = {"X-Organization": "BVG"}
         schema = dataset_cl.get_field_schema()
         label_fields = [
             name
@@ -554,10 +575,10 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             "task_size":1000,
             "segment_size" : 500,
             "task_name": f'{dataset_cl.name}_task',
-            "project_name": "detection2507",  
+            "project_name": CVAT_DEST_PROJECT,  
             "headers": headers,
         }
-        annotation_key = f'{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
         dataset_cl = filter_detections_for_uploading(dataset_cl)
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
