@@ -347,24 +347,26 @@ Select the number of the field serving as the ground truth for evaluating: 2
     for more information about remote sessions.
     ```
 
-    注：注意输入合法的端口即可成功启动fiftyone在浏览器打开，如果后续使用时发现fiftyone在浏览器无法成功刷新或者打开，重新跑一边此脚本即可
+    注：注意输入合法的端口即可成功启动fiftyone在浏览器打开，如果后续使用时发现fiftyone在浏览器无法成功刷新或者打开，重新跑一边此脚本即可  
+      
+        
 
-
+# Part XI: 更新日志
 ## 2025/07/14 更新内容
-#### 1. 修复了文件夹中没有yaml文件无法成功import的问题  
-#### 2. 修复了filteredupload中headers未定义的问题  
-#### 3. 修复了可能非法的annokey变量的问题  
-#### 4. 增加了新功能：上传到cvat的project可用参数--project控制，三种上传方式均可使用，默认project为```detection2507```  
-- 使用示例：  
+- 1. 修复了文件夹中没有yaml文件无法成功import的问题  
+- 2. 修复了filteredupload中headers未定义的问题  
+- 3. 修复了可能非法的annokey变量的问题  
+- 4. 增加了新功能：上传到cvat的project可用参数--project控制，三种上传方式均可使用，默认project为```detection2507```  
+    - 使用示例：  
 ```(base) huangyue@booster-BVG:~/0625$ python everything.py imported_wo_yamlfile116 best1115.pt --upload --project testproject0714```  
 注：按照以上命令能将task上传到testproject0714这个cvat project里，如果不存在此project则会自动新建
 
-#### 5. 增加了新功能：import现有label的文件夹到fiftyone时可用可选参数--rename控制自定义改名，否则就默认为路径的最后一节为数据集名称。无论是否用rename参数，数据集名称均会加上imported_前缀  
-- 使用示例：  
+- 5. 增加了新功能：import现有label的文件夹到fiftyone时可用可选参数--rename控制自定义改名，否则就默认为路径的最后一节为数据集名称。无论是否用rename参数，数据集名称均会加上imported_前缀  
+    - 使用示例：  
 ```(base) huangyue@booster-BVG:~/0625$ python everything.py asdhjk 0508.pt --importdataset 0707_37_prelabel/0707_37_prelabel/ --rename testset --prelabel --prelabel-class Ball ```  
 注：按照以上命令能将新导入的数据集命名为imported_testset并预标注所有的Ball，原数据集名称位置可任意输入占位。
 
 ## 2025/07/16 更新内容
-#### 1. 修复了文件夹里含有已损坏文件时会中断报错的问题
-#### 2. 在import时支持自动向文件夹深处寻找images和labels文件夹
-#### 3. 在导入纯图片时支持向文件夹深处寻找第一个含有可推理图片的文件夹
+- 1. 修复了文件夹里含有已损坏文件时会中断报错的问题
+- 2. 在import时支持自动向文件夹深处寻找images和labels文件夹
+- 3. 在导入纯图片时支持向文件夹深处寻找第一个含有可推理图片的文件夹
