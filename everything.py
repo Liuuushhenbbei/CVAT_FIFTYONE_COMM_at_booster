@@ -5,6 +5,7 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 import re
+import cv2
 
 import fiftyone as fo
 import fiftyone.core.fields as fof
@@ -75,6 +76,28 @@ class CustomYOLOv8Model():
             )
 
         return fol.Detections(detections=detections)
+    
+def find_first_dir_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".png", ".bmp")):
+    """
+    从 start_dir 开始递归查找：
+    - 如果当前目录有 color 开头的图片，返回当前目录
+    - 没有就递归进入子目录
+    - 全部查完没找到，抛异常
+    """
+    files = os.listdir(start_dir)
+    for f in files:
+        if f.lower().startswith("color") and f.lower().endswith(image_exts):
+            return start_dir
+
+    subdirs = [os.path.join(start_dir, d) for d in files if os.path.isdir(os.path.join(start_dir, d))]
+    for subdir in subdirs:
+        try:
+            return find_first_dir_with_color_images(subdir, image_exts)
+        except ValueError:
+            continue
+
+    raise ValueError(f"No folder with color images found in {start_dir}")
+
 
 def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on the fiftyone dataset (in one-field-on-one-model fashion and save/write predictions in the field) 
     cl_dataset_name = f'cl_{input_dataset.name}'
@@ -92,11 +115,29 @@ def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on t
         else:
             print(f"Prediction field {prediction_field} already exists, skipping prediction")
             continue
+        samples_to_delete = []
         for sample in dataset_cl:
             img_path = sample.filepath
-            print(img_path)
-            sample[prediction_field] = model.predict(img_path)
-            sample.save()
+            print(f"Processing: {img_path}")
+            if not os.path.exists(img_path):
+                print(f"Warning: File not found, deleting from dataset: {img_path}")
+                samples_to_delete.append(sample.id)
+                continue
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"Warning: Cannot open image or corrupted, deleting from dataset: {img_path}")
+                samples_to_delete.append(sample.id)
+                continue
+            try:
+                sample[prediction_field] = model.predict(img_path)
+                sample.save()
+            except Exception as e:
+                print(f"Warning: Prediction failed on {img_path}, deleting from dataset. Error: {e}")
+                samples_to_delete.append(sample.id)
+                continue
+        if samples_to_delete:
+            print(f"Deleting {len(samples_to_delete)} bad samples from dataset...")
+            dataset_cl.delete_samples(samples_to_delete)
     return dataset_cl
 
 def find_folders_with_images_and_labels(root_dir): 
@@ -324,7 +365,6 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
 
     print(f"Confidence threshold for filtered upload: {CONF_THRESH_4_FILTERED_UPLOADING}")
     print(f"IOU threshold for filtered upload: {IOU_THRESH_4_FILTERED_UPLOADING}")
-
     print(model_path_list)
 
     model_list = []
@@ -360,16 +400,21 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
             dataset = fo.load_dataset(datasetname)
             print(f"Loaded imported dataset: {datasetname}")
         else:
-            yaml_path = os.path.join(args.importdataset, "dataset.yaml")
+            matched_folders = find_folders_with_images_and_labels(args.importdataset)
+            if not matched_folders:
+                raise ValueError(f"No 'images' and 'labels' folders found under {args.importdataset}")
+            selected_folder = matched_folders[0]
+            print(f"Selected Folder: {selected_folder}")
+            yaml_path = os.path.join(selected_folder, "dataset.yaml")
             if not os.path.exists(yaml_path):
-                print("dataset.yaml not found, auto-generating...")
-                images_root = os.path.join(args.importdataset, "images")
-                labels_root = os.path.join(args.importdataset, "labels")
+                print(f"dataset.yaml not found in {selected_folder}, auto-generating...")
+                images_root = os.path.join(selected_folder, "images")
+                labels_root = os.path.join(selected_folder, "labels")
                 image_dir = find_first_color_image_dir(images_root)
-                label_dir = find_first_valid_dir(labels_root, ('.txt'))
+                label_dir = find_first_valid_dir(labels_root, ('.txt',))
                 if image_dir is not None and label_dir is not None:
-                    print(f"Found images in {image_dir}")
-                    print(f"Found labels in {label_dir}")
+                    print(f"Found images in: {image_dir}")
+                    print(f"Found labels in: {label_dir}")
                     generate_dataset_yaml(
                         train_dir=image_dir,
                         val_dir=image_dir,
@@ -377,43 +422,63 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
                         output_path=yaml_path
                     )
                 else:
-                    raise ValueError("No valid images or labels found under images/ and labels/")
+                    raise ValueError("No valid color images or labels found under images/ and labels/")
+            else:
+                print(f"Found existing dataset.yaml in {selected_folder}, using it directly.")
             importer = YOLOv5DatasetImporter(
-                dataset_dir=args.importdataset,
+                dataset_dir=selected_folder,
                 yaml_path="dataset.yaml",
                 split="val",
                 label_type="detections",
-                include_all_data = True
+                include_all_data=True
             )
-            if RENAME_IMPORTED_DATASET is None:
-                dataset = fo.Dataset.from_importer(importer, name=datasetname)
-                dataset.persistent = True
-                print(f"Imported YOLOv5 dataset: {datasetname}")
-                print(f"Imported {len(dataset)} samples into FiftyOne")
-            else:
-                datasetname = f"imported_{RENAME_IMPORTED_DATASET}"
-                dataset = fo.Dataset.from_importer(importer, name=datasetname)
-                dataset.persistent = True
-                print(f"Imported YOLOv5 dataset: {datasetname}")
-                print(f"Imported {len(dataset)} samples into FiftyOne")
+            final_datasetname = datasetname if RENAME_IMPORTED_DATASET is None else f"imported_{RENAME_IMPORTED_DATASET}"
+            dataset = fo.Dataset.from_importer(importer, name=final_datasetname)
+            dataset.persistent = True
+            print(f"Imported YOLOv5 dataset: {final_datasetname}")
+            print(f"Imported {len(dataset)} samples into FiftyOne")      
     else:
         if fo.dataset_exists(datasetname):
             dataset = fo.load_dataset(datasetname)
             print(f'Loaded existing dataset: {datasetname}')
+        # else:
+        #     print(f"datasetname: {datasetname}")
+        #     dataset = fo.Dataset(datasetname)
+        #     dataset.persistent = True 
+        #     exported_dataset_folders = find_folders_with_images_and_labels(datasetname)
+        #     print(f'Found {len(exported_dataset_folders)} exported dataset folders')
+        #     if not exported_dataset_folders:
+        #         # load dataset from directory
+        #         color_paths = [os.path.join(datasetname, d) for d in os.listdir(datasetname) if d.startswith('color_')]
+
+        #         dataset.add_images(color_paths)
+        #     else: 
+        #         for _dataset_name in exported_dataset_folders:
+        #             tmp_dataset = fo.load_dataset(_dataset_name)
+        #             dataset.merge_samples(tmp_dataset)
         else:
+            print(f"datasetname: {datasetname}")
+
             dataset = fo.Dataset(datasetname)
-            dataset.persistent = True 
-            exported_dataset_folders = find_folders_with_images_and_labels(datasetname)
-            print(f'Found {len(exported_dataset_folders)} exported dataset folders')
-            if not exported_dataset_folders:
-                # load dataset from directory
-                color_paths = [os.path.join(datasetname, d) for d in os.listdir(datasetname) if d.startswith('color_')]
+            dataset.persistent = True
+            try:
+                target_dir = find_first_dir_with_color_images(datasetname)
+                print(f"Found images in: {target_dir}")
+
+                color_paths = []
+                for fname in os.listdir(target_dir):
+                    if fname.lower().startswith('color') and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
+                        color_paths.append(os.path.join(target_dir, fname))
+
+                if not color_paths:
+                    raise ValueError(f"No color images found in {target_dir}")
 
                 dataset.add_images(color_paths)
-            else: 
-                for _dataset_name in exported_dataset_folders:
-                    tmp_dataset = fo.load_dataset(_dataset_name)
-                    dataset.merge_samples(tmp_dataset)
+                print(f"Added {len(color_paths)} images to dataset {datasetname}")
+
+            except ValueError as e:
+                print(f"Error: {e}")
+                raise e
 
     dataset_cl = get_predicted_ds(dataset, model_list, model_name_list)
 
