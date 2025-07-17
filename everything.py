@@ -78,24 +78,16 @@ class CustomYOLOv8Model():
         return fol.Detections(detections=detections)
     
 def find_first_dir_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".png", ".bmp")):
-    """
-    从 start_dir 开始递归查找：
-    - 如果当前目录有 color 开头的图片，返回当前目录
-    - 没有就递归进入子目录
-    - 全部查完没找到，抛异常
-    """
     files = os.listdir(start_dir)
     for f in files:
         if f.lower().startswith("color") and f.lower().endswith(image_exts):
             return start_dir
-
     subdirs = [os.path.join(start_dir, d) for d in files if os.path.isdir(os.path.join(start_dir, d))]
     for subdir in subdirs:
         try:
             return find_first_dir_with_color_images(subdir, image_exts)
         except ValueError:
             continue
-
     raise ValueError(f"No folder with color images found in {start_dir}")
 
 
@@ -141,14 +133,26 @@ def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on t
     return dataset_cl
 
 def find_folders_with_images_and_labels(root_dir): 
+    if not os.path.isdir(root_dir):
+        raise ValueError(f"Directory does not exist or is not a folder: {root_dir}")
     matched_folders = []
 
     for dirpath, dirnames, filenames in os.walk(root_dir):
-        # Convert list to lowercase set for case-insensitive comparison (optional)
-        dirnames_lower = set(name.lower() for name in dirnames)
+        try:
+            dirnames_lower = set(name.lower() for name in dirnames)
 
-        if 'images' in dirnames_lower and 'labels' in dirnames_lower:
-            matched_folders.append(dirpath)
+            if 'images' in dirnames_lower and 'labels' in dirnames_lower:
+                images_path = os.path.join(dirpath, 'images')
+                labels_path = os.path.join(dirpath, 'labels')
+
+                # Check if both 'images' and 'labels' folders are not empty
+                if os.listdir(images_path) and os.listdir(labels_path):
+                    matched_folders.append(dirpath)
+
+        except PermissionError as e:
+            print(f"Permission error when accessing {dirpath}: {e}, skipping this folder.")
+        except Exception as e:
+            print(f"Error occurred while scanning {dirpath}: {e}, skipping this folder.")
 
     print(f"Found {len(matched_folders)} folders with 'images' and 'labels':")
     return matched_folders            # a list of paths to the subfolders with images and labels
@@ -160,6 +164,9 @@ def generate_dataset_yaml(  # generate a file with multiple pieces of useful inf
     class_names=None,
     output_path="dataset.yaml"
 ):
+    for d, name in zip([train_dir, val_dir], ['train_dir', 'val_dir']):
+        if not os.path.isdir(d):
+            raise ValueError(f"{name} does not exist or is not a valid directory: {d}")
     # Auto-generate class names if not provided
     if class_names is None:
         # Example: generate "class0", "class1", ...
@@ -288,18 +295,18 @@ def choose_required_field(prompt):
             print("Please enter a valid number.")
 
 def choose_optional_field(prompt):
-            none_index = len(label_fields)
-            while True:
-                try:
-                    idx = int(input(f"{prompt} (or {none_index} for None): "))
-                    if 0 <= idx < len(label_fields):
-                        return label_fields[idx]
-                    elif idx == none_index:
-                        return None
-                    else:
-                        print(f"Invalid index: choose 0 to {len(label_fields)-1} or {none_index} for None")
-                except ValueError:
-                    print("Please enter a valid number.")
+    none_index = len(label_fields)
+    while True:
+        try:
+            idx = int(input(f"{prompt} (or {none_index} for None): "))
+            if 0 <= idx < len(label_fields):
+                return label_fields[idx]
+            elif idx == none_index:
+                return None
+            else:
+                print(f"Invalid index: choose 0 to {len(label_fields)-1} or {none_index} for None")
+        except ValueError:
+            print("Please enter a valid number.")
 
 def find_first_valid_dir(root, exts):
     for dirpath, dirnames, filenames in os.walk(root):
@@ -461,6 +468,7 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
 
             dataset = fo.Dataset(datasetname)
             dataset.persistent = True
+
             try:
                 target_dir = find_first_dir_with_color_images(datasetname)
                 print(f"Found images in: {target_dir}")
