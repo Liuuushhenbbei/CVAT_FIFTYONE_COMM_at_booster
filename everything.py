@@ -323,8 +323,7 @@ def find_first_color_image_dir(root):
 
 
 
-
-if __name__ == "__main__":          #只有当我python XXX.py的时候这段才会作为main运行 不然就不运行了
+if __name__ == "__main__":   
     parser = argparse.ArgumentParser(description="Process dataset and models")
     parser.add_argument("datasetname", type=str, help="Path to dataset folder") 
     parser.add_argument("model_paths", nargs="*", help="Paths to YOLO model files")
@@ -358,7 +357,6 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
     print(f"Import dataset directory: {args.importdataset}")
     print(f"Downloading destination field: {args.dest}")
     print(f"Destination CVAT project: {args.project}")
-
 
     datasetname = args.datasetname
     model_path_list = args.model_paths
@@ -489,6 +487,14 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
                 raise e
 
     dataset_cl = get_predicted_ds(dataset, model_list, model_name_list)
+
+    if args.download:
+        runs = dataset_cl.list_annotation_runs()
+        if runs:
+            annotation_key = runs[len(runs)-1]
+            dataset_cl.load_annotations(annotation_key, dest_field= str(DEST_FIELD_4_DOWNLOADING))
+        else:
+            print("No annotation runs found.")
 
     if args.exportdataset:
         export_dir = f'fiftyone_export/prelable/{dataset_cl.name}_{timestamp}'
@@ -674,14 +680,6 @@ if __name__ == "__main__":          #只有当我python XXX.py的时候这段才
         dataset_cl = filter_detections_for_uploading(dataset_cl)
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
-
-    if args.download:
-        runs = dataset_cl.list_annotation_runs()
-        if runs:
-            annotation_key = runs[len(runs)-1]
-            dataset_cl.load_annotations(annotation_key, dest_field= str(DEST_FIELD_4_DOWNLOADING))
-        else:
-            print("No annotation runs found.")
 
 
         # dataset_cl.load_annotations(annotation_key)
