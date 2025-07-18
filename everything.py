@@ -77,18 +77,35 @@ class CustomYOLOv8Model():
 
         return fol.Detections(detections=detections)
     
-def find_first_dir_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".png", ".bmp")):
+# def find_first_dir_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".png", ".bmp")):
+#     files = os.listdir(start_dir)
+#     for f in files:
+#         if f.lower().startswith("color") and f.lower().endswith(image_exts):
+#             return start_dir
+#     subdirs = [os.path.join(start_dir, d) for d in files if os.path.isdir(os.path.join(start_dir, d))]
+#     for subdir in subdirs:
+#         try:
+#             return find_first_dir_with_color_images(subdir, image_exts)
+#         except ValueError:
+#             continue
+#     raise ValueError(f"No folder with color images found in {start_dir}")
+
+def find_all_dirs_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".png", ".bmp")):
+    result_dirs = []
+
     files = os.listdir(start_dir)
-    for f in files:
-        if f.lower().startswith("color") and f.lower().endswith(image_exts):
-            return start_dir
+    has_color_image = any(
+        f.lower().startswith("color") and f.lower().endswith(image_exts)
+        for f in files
+    )
+    if has_color_image:
+        result_dirs.append(start_dir)
+
     subdirs = [os.path.join(start_dir, d) for d in files if os.path.isdir(os.path.join(start_dir, d))]
     for subdir in subdirs:
-        try:
-            return find_first_dir_with_color_images(subdir, image_exts)
-        except ValueError:
-            continue
-    raise ValueError(f"No folder with color images found in {start_dir}")
+        result_dirs.extend(find_all_dirs_with_color_images(subdir, image_exts))
+
+    return result_dirs
 
 
 def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on the fiftyone dataset (in one-field-on-one-model fashion and save/write predictions in the field) 
@@ -441,47 +458,28 @@ if __name__ == "__main__":
             dataset = fo.Dataset.from_importer(importer, name=final_datasetname)
             dataset.persistent = True
             print(f"Imported YOLOv5 dataset: {final_datasetname}")
-            print(f"Imported {len(dataset)} samples into FiftyOne")      
+            print(f"Imported {len(dataset)} samples into FiftyOne") 
     else:
         if fo.dataset_exists(datasetname):
             dataset = fo.load_dataset(datasetname)
             print(f'Loaded existing dataset: {datasetname}')
-        # else:
-        #     print(f"datasetname: {datasetname}")
-        #     dataset = fo.Dataset(datasetname)
-        #     dataset.persistent = True 
-        #     exported_dataset_folders = find_folders_with_images_and_labels(datasetname)
-        #     print(f'Found {len(exported_dataset_folders)} exported dataset folders')
-        #     if not exported_dataset_folders:
-        #         # load dataset from directory
-        #         color_paths = [os.path.join(datasetname, d) for d in os.listdir(datasetname) if d.startswith('color_')]
-
-        #         dataset.add_images(color_paths)
-        #     else: 
-        #         for _dataset_name in exported_dataset_folders:
-        #             tmp_dataset = fo.load_dataset(_dataset_name)
-        #             dataset.merge_samples(tmp_dataset)
         else:
             print(f"datasetname: {datasetname}")
-
             dataset = fo.Dataset(datasetname)
             dataset.persistent = True
-
             try:
-                target_dir = find_first_dir_with_color_images(datasetname)
-                print(f"Found images in: {target_dir}")
-
+                target_dirs = find_all_dirs_with_color_images(datasetname)
+                if not target_dirs:
+                    raise ValueError(f"No directories with color images found under {datasetname}")
                 color_paths = []
-                for fname in os.listdir(target_dir):
-                    if fname.lower().startswith('color') and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
-                        color_paths.append(os.path.join(target_dir, fname))
-
+                for target_dir in target_dirs:
+                    for fname in os.listdir(target_dir):
+                        if fname.lower().startswith('color') and fname.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp')):
+                            color_paths.append(os.path.join(target_dir, fname))
                 if not color_paths:
-                    raise ValueError(f"No color images found in {target_dir}")
-
+                    raise ValueError(f"No color images found in the matched directories under {datasetname}")
                 dataset.add_images(color_paths)
-                print(f"Added {len(color_paths)} images to dataset {datasetname}")
-
+                print(f"Added {len(color_paths)} images from {len(target_dirs)} folders to dataset {datasetname}")
             except ValueError as e:
                 print(f"Error: {e}")
                 raise e
