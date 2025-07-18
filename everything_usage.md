@@ -347,22 +347,20 @@ Select the number of the field serving as the ground truth for evaluating: 2
     for more information about remote sessions.
     ```
 
-    注：注意输入合法的端口即可成功启动fiftyone在浏览器打开，如果后续使用时发现fiftyone在浏览器无法成功刷新或者打开，重新跑一边此脚本即可  
-      
-        
+    注：注意输入合法的端口即可成功启动fiftyone在浏览器打开，如果后续使用时发现fiftyone在浏览器无法成功刷新或者打开，重新跑一边此脚本即可
 
-# Part XI: 更新日志
+
 ## 2025/07/14 更新内容
-- 1. 修复了文件夹中没有yaml文件无法成功import的问题  
-- 2. 修复了filteredupload中headers未定义的问题  
-- 3. 修复了可能非法的annokey变量的问题  
-- 4. 增加了新功能：上传到cvat的project可用参数--project控制，三种上传方式均可使用，默认project为```detection2507```  
-    - 使用示例：  
+#### 1. 修复了文件夹中没有yaml文件无法成功import的问题  
+#### 2. 修复了filteredupload中headers未定义的问题  
+#### 3. 修复了可能非法的annokey变量的问题  
+#### 4. 增加了新功能：上传到cvat的project可用参数--project控制，三种上传方式均可使用，默认project为```detection2507```  
+- 使用示例：  
 ```(base) huangyue@booster-BVG:~/0625$ python everything.py imported_wo_yamlfile116 best1115.pt --upload --project testproject0714```  
 注：按照以上命令能将task上传到testproject0714这个cvat project里，如果不存在此project则会自动新建
 
-- 5. 增加了新功能：import现有label的文件夹到fiftyone时可用可选参数--rename控制自定义改名，否则就默认为路径的最后一节为数据集名称。无论是否用rename参数，数据集名称均会加上imported_前缀  
-    - 使用示例：  
+#### 5. 增加了新功能：import现有label的文件夹到fiftyone时可用可选参数--rename控制自定义改名，否则就默认为路径的最后一节为数据集名称。无论是否用rename参数，数据集名称均会加上imported_前缀  
+- 使用示例：  
 ```(base) huangyue@booster-BVG:~/0625$ python everything.py asdhjk 0508.pt --importdataset 0707_37_prelabel/0707_37_prelabel/ --rename testset --prelabel --prelabel-class Ball ```  
 注：按照以上命令能将新导入的数据集命名为imported_testset并预标注所有的Ball，原数据集名称位置可任意输入占位。
 
@@ -370,3 +368,25 @@ Select the number of the field serving as the ground truth for evaluating: 2
 - 1. 修复了文件夹里含有已损坏文件时会中断报错的问题
 - 2. 在import时支持自动向文件夹深处寻找images和labels文件夹
 - 3. 在导入纯图片时支持向文件夹深处寻找第一个含有可推理图片的文件夹
+
+## 2025/07/18 更新内容
+#### 1. 增加了新功能 支持了一条指令完成下载标注，并用新下载下来的field字段参与到评价，然后导出含有fp和fn内容的图片以及这些图片里的"ground_truth"标签 
+- 使用示例：  
+```(base) huangyue@booster-BVG:~/0625$ python everything.py imported_0707_37_prelabel 0710.pt --download --dest absolutelynewgroundtruth --eval --export-bad-case --fplabel Ball ``` 
+```  
+Downloading labels from CVAT...
+Download complete
+Loading labels for field 'absolutelynewgroundtruth'...
+ 100% |███████████████████████████████████████████████| 603/603 [169.2ms elapsed, 0s remaining, 3.6K samples/s]
+Available detection label fields:
+[0] ground_truth
+[1] 07100pt_conf_002
+[2] mynewgroundtruth
+[3] brandnewgroundtruth
+[4] absolutelynewgroundtruth
+Select the number of the field serving as the target for evaluating: 1
+Select the number of the field serving as the ground truth for evaluating: 4 
+exporting the field absolutelynewgroundtruth to fiftyone_export/bad_case/cl_imported_0707_37_prelabel_20250718_112714
+```  
+注：这里我会将新标注完成的内容下载到absolutelynewgroundtruth这个人工新建的字段里，并可以直接选用他作为评价标准的字段(serving as ground truth)
+注：然后我可以选择Ball来作为bad-case的评判对象，将所有fp fn的图片以及对应的"正确标签"导出

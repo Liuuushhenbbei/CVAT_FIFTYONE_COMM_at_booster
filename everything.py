@@ -559,22 +559,18 @@ if __name__ == "__main__":
             fp_view = dataset_cl.filter_labels(EVAL_FIELD_AS_TARGET, (F(f'{eval_key}') == 'fp') & (F('label') == str(FP_LABEL_4_EXPORTING)))
             print(f'len of fn_view: {len(fn_view)}')
             print(f'len of fp_view: {len(fp_view)}')
+            merged = fo.Dataset(name=f"merged_dataset_{timestamp}")
 
-            merged = fo.Dataset(name="merged_dataset")
             merged.merge_samples(fn_view)
             merged.merge_samples(fp_view)
 
             print(f'len of bad_case_view: {len(merged)}')
-
             export_dir = f'fiftyone_export/bad_case/{dataset_cl.name}_{timestamp}'
             exporter = YOLOv5DatasetExporter(export_dir, classes=class_names)
-
             print(f"exporting the field {EVAL_FIELD_AS_GROUND_TRUTH} to {export_dir}")
-            dataset_cl.export(dataset_exporter=exporter,
-                                dataset_type=fo.types.YOLOv5Dataset,
-                                label_field=EVAL_FIELD_AS_GROUND_TRUTH)  # export ground truth labels
-
-            fo.delete_dataset(merged.name)
+            merged.export(dataset_exporter=exporter,
+                        dataset_type=fo.types.YOLOv5Dataset,
+                        label_field=EVAL_FIELD_AS_GROUND_TRUTH)  # export ground truth labels
     
     if args.upload:
         headers = {"X-Organization": "BVG"}
