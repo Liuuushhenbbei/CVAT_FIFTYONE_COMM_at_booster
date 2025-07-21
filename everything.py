@@ -109,7 +109,7 @@ def find_all_dirs_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".pn
 
 
 def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on the fiftyone dataset (in one-field-on-one-model fashion and save/write predictions in the field) 
-    cl_dataset_name = f'cl_{input_dataset.name}'
+    cl_dataset_name = f'cl_{input_dataset.name}'.replace('.','_')
     if cl_dataset_name in fo.list_datasets():
         dataset_cl = fo.load_dataset(cl_dataset_name)
     else:
