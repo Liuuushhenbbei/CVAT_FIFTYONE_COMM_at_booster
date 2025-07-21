@@ -621,7 +621,7 @@ if __name__ == "__main__":
             "task_size":1000,
             "segment_size" : 500,
             "task_name": f'{dataset_cl.name}_task',
-            "project_name": CVAT_DEST_PROJECT,  # optional: assign to existing or new CVAT project
+            "project_name": CVAT_DEST_PROJECT,  
             "headers": headers,
         }
         annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_').replace('.','_')
