@@ -109,7 +109,7 @@ def find_all_dirs_with_color_images(start_dir, image_exts=(".jpg", ".jpeg", ".pn
 
 
 def get_predicted_ds(input_dataset, models, prediction_fields):   # predict on the fiftyone dataset (in one-field-on-one-model fashion and save/write predictions in the field) 
-    cl_dataset_name = f'cl_{input_dataset.name}'.replace('.','_')
+    cl_dataset_name = f'cl_{input_dataset.name}'
     if cl_dataset_name in fo.list_datasets():
         dataset_cl = fo.load_dataset(cl_dataset_name)
     else:
@@ -584,7 +584,7 @@ if __name__ == "__main__":
             "project_name": CVAT_DEST_PROJECT,  
             "headers": headers,
         }
-        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_').replace('.','_')
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
 
@@ -624,7 +624,7 @@ if __name__ == "__main__":
             "project_name": CVAT_DEST_PROJECT,  # optional: assign to existing or new CVAT project
             "headers": headers,
         }
-        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_').replace('.','_')
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
 
@@ -670,7 +670,7 @@ if __name__ == "__main__":
             "project_name": CVAT_DEST_PROJECT,  
             "headers": headers,
         }
-        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_')
+        annotation_key = f'anno_{dataset_cl.name}_{timestamp}'.replace('/', '-').replace('-', '_').replace('.','_')
         dataset_cl = filter_detections_for_uploading(dataset_cl)
         results = dataset_cl.annotate(anno_key=annotation_key, **options)
         results.print_status()
