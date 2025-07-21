@@ -676,7 +676,6 @@ if __name__ == "__main__":
         results.print_status()
 
         # # Cleanup
-
         # # Delete tasks from CVAT
         # results = dataset.load_annotation_results(annotation_key)
         # results.cleanup()
